@@ -1,8 +1,10 @@
 use serenity::builder::{CreateCommand, CreateEmbed};
-use serenity::model::application::ResolvedOption;
 
-pub fn run(_options: &[ResolvedOption]) -> CreateEmbed {
-    CreateEmbed::new().title("Hai!").color(0x6AFF00)
+use crate::game::types::{CommandData, CommandResponse};
+
+pub fn run(_: CommandData) -> CommandResponse {
+    let embed = CreateEmbed::new().title("Hai!").color(0x6AFF00);
+    CommandResponse(embed, true)
 }
 
 pub fn register() -> CreateCommand {

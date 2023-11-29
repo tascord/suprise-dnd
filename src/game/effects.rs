@@ -29,6 +29,10 @@ lazy_static! {
         duration: 6,
         modifier: 1,
         on_turn: Arc::new(Box::new(|mut p| {
+            if p.inventory.len() == 0 {
+                return;
+            }
+
             let (i, _) = p
                 .inventory
                 .clone()
@@ -37,7 +41,8 @@ lazy_static! {
                 .choose(&mut thread_rng())
                 .unwrap();
 
-            p.inventory.get_mut(i).replace(SAND.clone().borrow_mut());
+            p.inventory.remove(&i.to_string());
+            p.collect(SAND.clone());
         })),
         on_roll: Arc::new(Box::new(|_, r| r)),
     };

@@ -1,18 +1,22 @@
-use std::sync::Arc;
-
 use serde::{Deserialize, Deserializer, Serialize};
+use serenity::{
+    all::{ResolvedOption, User},
+    builder::CreateEmbed,
+};
+use std::{io::Write, rc::Rc, sync::Mutex};
+use std::{collections::HashMap, sync::Arc};
 
 use super::{dice::Dice, effects::EFFECT_MAP, items::ITEM_MAP};
 
 type RollFn = Arc<Box<dyn FnMut(Player, RollContext) -> RollContext + Send + Sync + 'static>>;
 type PlayerFn = Arc<Box<dyn FnMut(Player) + Send + Sync + 'static>>;
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Player {
     pub id: String,
     pub stats: Stats,
     pub effects: Vec<Effect>,
-    pub inventory: Vec<Item>,
+    pub inventory: HashMap<String, Item>,
 }
 
 pub enum StatType {
@@ -24,7 +28,7 @@ pub enum StatType {
     Charisma,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Stats {
     pub strength: u32,
     pub dexterity: u32,
@@ -47,11 +51,18 @@ pub struct Effect {
 #[derive(Clone)]
 pub struct Item {
     pub id: String,
+    pub meta: ItemMeta,
     pub name: String,
     pub description: String,
     pub on_turn: Option<PlayerFn>,
     pub on_roll: Option<RollFn>,
     pub on_use: Option<PlayerFn>,
+}
+
+#[derive(Clone, Serialize, Default)]
+pub struct ItemMeta {
+    attachment: String,
+    last_used: u32,
 }
 
 pub enum RollType {
@@ -131,7 +142,59 @@ impl Player {
             id,
             stats,
             effects: Vec::new(),
-            inventory: Vec::new(),
+            inventory: HashMap::new(),
         }
+    }
+
+    pub fn collect(&mut self, mut item: Item) {
+        let id = String::new(); // TODO: uuid
+        item.meta.attachment = id.clone();
+        self.inventory.insert(id, item);
+    }
+}
+
+/// User, args
+#[derive(Clone)]
+pub struct CommandData<'a>(pub User, pub &'a [ResolvedOption<'a>], pub Arc<Mutex<GameState>>);
+
+/// Embed, ephemeral
+#[derive(Clone)]
+pub struct CommandResponse(pub CreateEmbed, pub bool);
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct GameState {
+    pub players: HashMap<String, Player>,
+}
+
+static GAME_FILE: &str = "game.json";
+impl GameState {
+    pub fn new() -> Self {
+        if !std::path::Path::new(GAME_FILE).exists() {
+            // Create new game file
+            let mut file = std::fs::File::create(GAME_FILE).unwrap();
+            let game_state = GameState {
+                players: HashMap::new(),
+            };
+
+            let json = serde_json::to_string(&game_state).unwrap();
+            file.write_all(json.as_bytes()).unwrap();
+        }
+
+        let file = std::fs::File::open(GAME_FILE).unwrap();
+        let game_state: GameState = serde_json::from_reader(file).unwrap();
+
+        game_state
+    }
+
+    pub fn save(&self) {
+        let mut file = std::fs::File::create(GAME_FILE).unwrap();
+        let json = serde_json::to_string(&self).unwrap();
+        file.write_all(json.as_bytes()).unwrap();
+    }
+
+    pub fn get_player(&mut self, id: &str) -> &mut Player {
+        self.players
+            .entry(id.to_string())
+            .or_insert_with(|| Player::new(id.to_string()))
     }
 }

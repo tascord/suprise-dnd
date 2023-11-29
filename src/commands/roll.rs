@@ -3,19 +3,22 @@ use serenity::builder::{CreateCommand, CreateCommandOption, CreateEmbed};
 use serenity::model::application::ResolvedOption;
 
 use crate::game::dice::Dice;
+use crate::game::types::{CommandData, CommandResponse};
 
-pub fn run(options: &[ResolvedOption]) -> CreateEmbed {
+pub fn run(data: CommandData) -> CommandResponse {
+    let options = data.1;
+
     if let Some(ResolvedOption {
         value: ResolvedValue::String(roll),
         ..
     }) = options.first()
     {
         match Dice::from_string(roll) {
-            Ok(result) => embed(roll, result),
-            Err(_) => error_embed(),
+            Ok(result) => CommandResponse(embed(roll, result), false),
+            Err(_) => CommandResponse(error_embed(), true),
         }
     } else {
-        error_embed()
+        CommandResponse(error_embed(), true)
     }
 }
 
